@@ -49,7 +49,7 @@ fn to_completion_list(items: Vec<HxCompletion>) -> CompletionList {
     };
 }
 
-fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()> {
+fn main_loop(connection: &Connection, params: serde_json::Value) -> Result<()> {
     let _params: InitializeParams = serde_json::from_value(params).unwrap();
 
     info!("STARTING EXAMPLE MAIN LOOP");
@@ -58,7 +58,13 @@ fn main_loop(connection: Connection, params: serde_json::Value) -> Result<()> {
         error!("connection received message: {:?}", msg);
         let result = match msg {
             Message::Notification(not) => handle_notification(not),
-            Message::Request(req) => handle_request(req),
+            Message::Request(req) => {
+                if connection.handle_shutdown(&req)? {
+                    None
+                } else {
+                    handle_request(req)
+                }
+            }
             _ => handle_other(msg),
         };
 
@@ -141,7 +147,7 @@ pub fn start_lsp() -> Result<()> {
     .unwrap();
 
     let initialization_params = connection.initialize(server_capabilities)?;
-    main_loop(connection, initialization_params)?;
+    main_loop(&connection, initialization_params)?;
     io_threads.join()?;
 
     // Shut down gracefully.
